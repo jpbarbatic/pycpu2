@@ -95,10 +95,10 @@ class CPU:
                 self.registers[dest] = res & 0xFF
                 self.update_flags(self.registers[dest], carry=(res > 0xFF))
                 return f"[{self.pc-2:02X}] ADD {self._rname(dest)}, {self._rname(src)}"
-        elif opcode == 0x07:
+        elif opcode == 0x07: # SUB reg
             reg = operand & 0x3
-            res = self.registers[0] - self.registers[reg]
-            self.registers[0] = res & 0xFF
+            res = self.registers[0] - self.registers[reg] # A - reg
+            self.registers[0] = res & 0xFF                # Resultado a A
             self.update_flags(self.registers[0], carry=(res < 0))
             return f"[{self.pc-1:02X}] SUB {self._rname(reg)}"
         elif opcode == 0x08:
