@@ -4,10 +4,10 @@ class Assembler:
     REGISTERS = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
     INSTR_SIZES = {
         'NOP': 1, 'HLT': 1, 'RET': 1, 'DIV': 1,
-        'SUB': 1, 'SHF': 1, 'AND': 1, 'OR': 1, 'XOR': 1,
+        'SHF': 1, 'AND': 1, 'OR': 1, 'XOR': 1,
         'PUSH': 1, 'POP': 1,
         'IN': 2, 'OUT': 2, 'LD': 2, 'ST': 2, 'LDI': 2, 'STI': 2,
-        'JMP': 2, 'JZ': 2, 'JNZ': 2, 'CALL': 2, 'ADD': 2
+        'JMP': 2, 'JZ': 2, 'JNZ': 2, 'CALL': 2, 'ADD': 2, 'SUB': 2
     }
 
     @classmethod
@@ -73,7 +73,7 @@ class Assembler:
                     instr = tokens[0].upper()
                     if instr == 'MOV': 
                         code_size += 2
-                    elif instr == 'ADD':
+                    elif instr == 'ADD' or instr == 'SUB':
                         code_size += 2
                     elif instr == 'CMP':
                         code_size += 2 if len(tokens) == 3 else 1
@@ -122,7 +122,7 @@ class Assembler:
                     
                     if instr == 'MOV': 
                         code_addr += 2 
-                    elif instr == 'ADD':
+                    elif instr == 'ADD' or instr == 'SUB':
                         code_addr += 2
                     elif instr == 'CMP':
                         code_addr += 2 if len(tokens) == 3 else 1
@@ -176,14 +176,22 @@ class Assembler:
                     src_upper = src_or_imm.upper()
 
                     if src_upper in cls.REGISTERS:
-                        # ADD reg1, reg2 -> 0x30 | dest
                         memory_map[addr] = 0x30 | cls.REGISTERS[dest]
                         memory_map[addr+1] = cls.REGISTERS[src_upper]
                     else:
-                        # ADD reg, inm -> 0x34 | dest
                         memory_map[addr] = 0x34 | cls.REGISTERS[dest]
                         memory_map[addr+1] = resolve_val(src_or_imm) & 0xFF
-                elif instr == 'SUB': memory_map[addr] = 0x38 | cls.REGISTERS[parts[1].upper()]
+                elif instr == 'SUB':
+                    dest = parts[1].upper()
+                    src_or_imm = parts[2]
+                    src_upper = src_or_imm.upper()
+
+                    if src_upper in cls.REGISTERS:
+                        memory_map[addr] = 0x38 | cls.REGISTERS[dest]
+                        memory_map[addr+1] = cls.REGISTERS[src_upper]
+                    else:
+                        memory_map[addr] = 0x3C | cls.REGISTERS[dest]
+                        memory_map[addr+1] = resolve_val(src_or_imm) & 0xFF
                 elif instr == 'SHF': memory_map[addr] = 0x40 | cls.REGISTERS[parts[1].upper()]
                 elif instr == 'AND': memory_map[addr] = 0x48 | cls.REGISTERS[parts[1].upper()]
                 elif instr == 'OR':  memory_map[addr] = 0x50 | cls.REGISTERS[parts[1].upper()]
