@@ -1,0 +1,214 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!-- Created with Cambalache 1.2.0 -->
+<interface>
+  <!-- interface-name app.ui -->
+  <requires lib="gtk" version="4.0"/>
+  <object class="GtkApplicationWindow" id="main_window">
+    <property name="default-height">800</property>
+    <property name="default-width">1200</property>
+    <property name="icon-name">cpu-symbolic</property>
+    <property name="maximized">True</property>
+    <property name="title">Simulador CPU 8-bits - Debugger Visual</property>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="spacing">10</property>
+        <child>
+          <object class="GtkBox">
+            <property name="margin-start">10</property>
+            <property name="margin-top">10</property>
+            <property name="orientation">horizontal</property>
+            <property name="spacing">10</property>
+            <child>
+              <object class="GtkButton" id="btn_assemble">
+                <property name="label">Ensamblar</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="btn_step">
+                <property name="label">Paso a Paso</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="btn_run">
+                <property name="label">Ejecutar</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="btn_reset">
+                <property name="label">Reset</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkDropDown" id="frec_drop"/>
+            </child>
+            <child>
+              <object class="GtkButton" id="btn_load">
+                <property name="label">Cargar</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkButton" id="btn_save">
+                <property name="label">Guardar</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="margin-bottom">10</property>
+            <property name="margin-end">10</property>
+            <property name="margin-start">10</property>
+            <property name="orientation">horizontal</property>
+            <property name="spacing">15</property>
+            <property name="vexpand">True</property>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">5</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="halign">start</property>
+                    <property name="label">&lt;b&gt;Editor Assembly&lt;/b&gt;</property>
+                    <property name="use-markup">True</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
+                    <child>
+                      <object class="GtkTextView" id="code_view">
+                        <property name="left-margin">5</property>
+                        <property name="monospace">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="hexpand">True</property>
+                <property name="orientation">vertical</property>
+                <property name="spacing">10</property>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">5</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="halign">start</property>
+                        <property name="label">&lt;b&gt;Registros&lt;/b&gt;</property>
+                        <property name="use-markup">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="lbl_regs">
+                        <property name="halign">start</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">5</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="halign">start</property>
+                        <property name="label">&lt;b&gt;Periféricos I/O&lt;/b&gt;</property>
+                        <property name="use-markup">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="halign">start</property>
+                        <property name="label">&lt;b&gt;Teclado (Puerto 0):&lt;/b&gt;</property>
+                        <property name="use-markup">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkEntry" id="entry_key">
+                        <property name="placeholder-text">Escribe texto aquí...</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="halign">start</property>
+                        <property name="label">&lt;b&gt;Terminal:&lt;/b&gt;</property>
+                        <property name="use-markup">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <child>
+                          <object class="GtkTextView" id="display_view">
+                            <property name="editable">False</property>
+                            <property name="monospace">True</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="spacing">5</property>
+                    <property name="vexpand">True</property>
+                    <child>
+                      <object class="GtkLabel">
+                        <property name="halign">start</property>
+                        <property name="label">&lt;b&gt;Traza de Ejecución&lt;/b&gt;</property>
+                        <property name="use-markup">True</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkScrolledWindow">
+                        <property name="vexpand">True</property>
+                        <child>
+                          <object class="GtkTextView" id="trace_view">
+                            <property name="editable">False</property>
+                            <property name="left-margin">5</property>
+                            <property name="monospace">True</property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <property name="spacing">5</property>
+                <child>
+                  <object class="GtkLabel">
+                    <property name="halign">start</property>
+                    <property name="label">&lt;b&gt;Memoria (Hex)&lt;/b&gt;</property>
+                    <property name="use-markup">True</property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hexpand">True</property>
+                    <property name="vexpand">True</property>
+                    <child>
+                      <object class="GtkTextView" id="mem_view">
+                        <property name="editable">False</property>
+                        <property name="left-margin">5</property>
+                        <property name="monospace">True</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>
