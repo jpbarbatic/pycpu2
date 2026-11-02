@@ -3,11 +3,12 @@ import re
 class Assembler:
     REGISTERS = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
     INSTR_SIZES = {
-        'NOP': 1, 'HLT': 1, 'RET': 1, 'DIV': 1,
+        'NOP': 1, 'HLT': 1, 'RET': 1,
         'SHF': 1, 'AND': 1, 'OR': 1, 'XOR': 1,
         'PUSH': 1, 'POP': 1,
         'IN': 2, 'OUT': 2, 'LD': 2, 'ST': 2, 'LDI': 2, 'STI': 2,
-        'JMP': 2, 'JZ': 2, 'JNZ': 2, 'CALL': 2, 'ADD': 2, 'SUB': 2
+        'JMP': 2, 'JZ': 2, 'JNZ': 2, 'CALL': 2, 
+        'ADD': 2, 'SUB': 2, 'MUL': 2, 'DIV': 2
     }
 
     @classmethod
@@ -71,12 +72,13 @@ class Assembler:
                         if not tokens: continue
                     
                     instr = tokens[0].upper()
-                    if instr == 'MOV': 
-                        code_size += 2
-                    elif instr == 'ADD' or instr == 'SUB':
+                    if instr in ('MOV', 'ADD', 'SUB', 'MUL', 'DIV'): 
                         code_size += 2
                     elif instr == 'CMP':
-                        code_size += 2 if len(tokens) == 3 else 1
+                        if len(tokens) == 3 and tokens[2].upper() not in cls.REGISTERS:
+                            code_size += 2
+                        else:
+                            code_size += 1
                     elif instr in cls.INSTR_SIZES: 
                         code_size += cls.INSTR_SIZES[instr]
 
@@ -120,12 +122,13 @@ class Assembler:
                     parsed_instructions.append((code_addr, tokens))
                     instr = tokens[0].upper()
                     
-                    if instr == 'MOV': 
-                        code_addr += 2 
-                    elif instr == 'ADD' or instr == 'SUB':
+                    if instr in ('MOV', 'ADD', 'SUB', 'MUL', 'DIV'): 
                         code_addr += 2
                     elif instr == 'CMP':
-                        code_addr += 2 if len(tokens) == 3 else 1
+                        if len(tokens) == 3 and tokens[2].upper() not in cls.REGISTERS:
+                            code_addr += 2
+                        else:
+                            code_addr += 1
                     elif instr in cls.INSTR_SIZES: 
                         code_addr += cls.INSTR_SIZES[instr]
 
@@ -192,14 +195,40 @@ class Assembler:
                     else:
                         memory_map[addr] = 0x3C | cls.REGISTERS[dest]
                         memory_map[addr+1] = resolve_val(src_or_imm) & 0xFF
+                elif instr == 'MUL':
+                    dest = parts[1].upper()
+                    src_or_imm = parts[2]
+                    src_upper = src_or_imm.upper()
+
+                    if src_upper in cls.REGISTERS:
+                        memory_map[addr] = 0xD0 | cls.REGISTERS[dest]
+                        memory_map[addr+1] = cls.REGISTERS[src_upper]
+                    else:
+                        memory_map[addr] = 0xD4 | cls.REGISTERS[dest]
+                        memory_map[addr+1] = resolve_val(src_or_imm) & 0xFF
+                elif instr == 'DIV':
+                    dest = parts[1].upper()
+                    src_or_imm = parts[2]
+                    src_upper = src_or_imm.upper()
+
+                    if src_upper in cls.REGISTERS:
+                        memory_map[addr] = 0xE0 | cls.REGISTERS[dest]
+                        memory_map[addr+1] = cls.REGISTERS[src_upper]
+                    else:
+                        memory_map[addr] = 0xE4 | cls.REGISTERS[dest]
+                        memory_map[addr+1] = resolve_val(src_or_imm) & 0xFF
                 elif instr == 'SHF': memory_map[addr] = 0x40 | cls.REGISTERS[parts[1].upper()]
                 elif instr == 'AND': memory_map[addr] = 0x48 | cls.REGISTERS[parts[1].upper()]
                 elif instr == 'OR':  memory_map[addr] = 0x50 | cls.REGISTERS[parts[1].upper()]
                 elif instr == 'XOR': memory_map[addr] = 0x58 | cls.REGISTERS[parts[1].upper()]
                 elif instr == 'CMP':
                     if len(parts) == 3:
-                        memory_map[addr] = 0xC0 | cls.REGISTERS[parts[1].upper()]
-                        memory_map[addr+1] = resolve_val(parts[2]) & 0xFF
+                        target = parts[2].upper()
+                        if target in cls.REGISTERS:
+                            memory_map[addr] = 0x60 | cls.REGISTERS[target]
+                        else:
+                            memory_map[addr] = 0xC0 | cls.REGISTERS[parts[1].upper()]
+                            memory_map[addr+1] = resolve_val(parts[2]) & 0xFF
                     else:
                         memory_map[addr] = 0x60 | cls.REGISTERS[parts[1].upper()]
                 elif instr == 'LD':
@@ -229,7 +258,6 @@ class Assembler:
                 elif instr == 'STI':
                     memory_map[addr] = 0xB8 | cls.REGISTERS[parts[1].upper()] 
                     memory_map[addr+1] = cls.REGISTERS[parts[2].upper()]
-                elif instr == 'DIV': memory_map[addr] = 0xC8 | cls.REGISTERS[parts[1].upper()]
 
             return memory_map, address_to_line, code_size, data_addr, None
         except Exception as e:
