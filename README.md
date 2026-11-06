@@ -1,175 +1,213 @@
-# Simulador de CPU Modular de 8 Bits con Interfaz GTK4
+# 🖥️ Simulador de CPU de 8 bits (GTK4 & Web Debugger)
 
-Un simulador visual e interactivo de una arquitectura de CPU de 8 bits desarrollado en Python con GTK4. Cuenta con un ensamblador integrado con soporte para cadenas y literales ASCII, visualización de memoria codificada por colores, terminal I/O interactiva y ejecutor paso a paso/en tiempo real.
-
----
-
-## 🛠️ Arquitectura del Sistema
-
-* **Bus de Datos / Registros:** 8 bits ($00 - FF / 0 - 255$).
-* **Memoria:** 256 Bytes direccionables ($00 - FF$).
-* **Registros de Propósito General:** 4 registros de 8 bits (`A`, `B`, `C`, `D`).
-  * `A`: Acumulador por defecto para operaciones aritmético-lógicas y cociente en `DIV`.
-  * `C`: Registro auxiliar / almacenamiento de residuo en `DIV`.
-* **Punteros Internos:**
-  * `PC` (Program Counter): Apunta a la instrucción actual en ejecución.
-  * `SP` (Stack Pointer): Inicializado en `0xFF`, decrece con `PUSH`/`CALL` e incrementa con `POP`/`RET`.
-* **Flags (Banderas):**
-  * `Z` (Zero Flag): Se activa ($1$) si el resultado de una operación es $0$.
-  * `C` (Carry Flag): Se activa ($1$) en caso de acarreo/desbordamiento (suma $> 255$ o resta $< 0$).
-* **Puertos de I/O:** 256 puertos de entrada/salida ($00 - FF$).
-  * **Puerto 0 (Entrada):** Teclado / Búfer de caracteres.
-  * **Puerto 1 (Salida):** Terminal de texto (modos entero y ASCII).
+Un simulador pedagógico de una CPU de 8 bits con soporte para un juego de instrucciones (ISA) de 1 y 2 bytes, ensamblador integrado, mapa de memoria visual, traza de ejecución y control de entrada/salida (I/O).
 
 ---
 
-## 📑 Sintaxis del Ensamblador
+## 📑 Tabla de Contenidos
 
-El ensamblador admite secciones, etiquetas, literales de carácter y directivas de datos:
-
-* **Secciones:**
-  * `.CODE`: Define el bloque de instrucciones ejecutables (empieza en la dirección `0x00`).
-  * `.DATA`: Define constantes y cadenas almacenadas en memoria tras el código de usuario.
-* **Etiquetas:** Definen saltos o referencias a memoria finalizadas en dos puntos (`ETIQUETA:`).
-* **Literales ASCII e Inmediatos:**
-  * Enteros Decimales: `10`, `255`
-  * Enteros Hexadecimales: `0x0A`, `0xFF`
-  * Caracteres ASCII explícitos: `$'a'`, `$','`, `$' '`
-* **Directiva `.DATA`:**
-  * `DB "Hola Mundo", 0`: Almacena una cadena terminada en nulo ($0x00$).
-  * `DB 10, 20, 0x30`: Almacena valores numéricos consecutivos.
+* [Arquitectura General](https://www.google.com/search?q=%23-arquitectura-general)
+* [Mapa de Registros y Memoria](https://www.google.com/search?q=%23-mapa-de-registros-y-memoria)
+* [Juego de Instrucciones (ISA) y Opcodes](https://www.google.com/search?q=%23-juego-de-instrucciones-isa-y-opcodes)
+* [Modos de Direccionamiento](https://www.google.com/search?q=%23-modos-de-direccionamiento)
+* [Sistema de Periféricos (I/O)](https://www.google.com/search?q=%23-sistema-de-perif%C3%A9ricos-io)
+* [Instalación y Ejecución](https://www.google.com/search?q=%23-instalaci%C3%B3n-y-ejecuci%C3%B3n)
+* [Ejemplos de Programación](https://www.google.com/search?q=%23-ejemplos-de-programaci%C3%B3n)
 
 ---
 
-## 📊 Tabla de Opcodes e Instrucciones
+## 🏗️ Arquitectura General
 
-Los opcodes ocupan los 5 bits más significativos del primer byte (`opcode = byte >> 3`), mientras que los 3 bits menos significativos especifican el registro o modo (`operand = byte & 0x07`).
+* **Tamaño de Palabra**: 8 bits ($0x00$ a $0xFF$, valores enteros de $0$ a $255$).
+* **Memoria RAM**: 256 Bytes direccionables ($0x00$ a $0xFF$).
+* **Registros de Propósito General**: `A`, `B`, `C`, `D` (8 bits cada uno).
+* **Punteros Internos**:
+* `PC` (Program Counter): Señala la dirección de la siguiente instrucción a ejecutar.
+* `SP` (Stack Pointer): Apunta a la cima de la pila en memoria (inicializado en $0xFF$).
 
-| Mnemónico | Opcode (Hex) | Tamaño | Descripción / Operación | Banderas Afectadas |
-| :--- | :---: | :---: | :--- | :---: |
-| **`NOP`** | `0x00` | 1 Byte | Sin operación. | Ninguna |
-| **`IN reg, port`** | `0x01` | 2 Bytes | Lee el valor del puerto I/O en `reg`. | Ninguna |
-| **`OUT port, reg`** | `0x02` | 2 Bytes | Muestra el valor de `reg` en `port` (Formato Numérico). | Ninguna |
-| **`OUT port, $reg`**| `0x02` | 2 Bytes | Muestra el valor de `reg` en `port` (Formato Carácter ASCII). | Ninguna |
-| **`HLT`** | `0x03` | 1 Byte | Detiene la ejecución de la CPU. | Ninguna |
-| **`MOV reg, inm`** | `0x04` | 2 Bytes | Carga el valor inmediato `inm` en `reg`. | Ninguna |
-| **`MOV dest, src`** | `0x05` | 2 Bytes | Copia el contenido de `src` en `dest`. | Ninguna |
-| **`ADD reg`** | `0x06` | 1 Byte | `A = A + reg` | Z, C |
-| **`SUB reg`** | `0x07` | 1 Byte | `A = A - reg` | Z, C |
-| **`SHF reg`** | `0x08` | 1 Byte | Desplazamiento a la izquierda: `reg = reg << 1` | Z, C |
-| **`AND reg`** | `0x09` | 1 Byte | `A = A & reg` (AND bit a bit) | Z |
-| **`OR reg`** | `0x0A` | 1 Byte | `A = A \| reg` (OR bit a bit) | Z |
-| **`XOR reg`** | `0x0B` | 1 Byte | `A = A ^ reg` (XOR bit a bit) | Z |
-| **`CMP reg`** | `0x0C` | 1 Byte | Compara `A` con `reg` (Resta interna `A - reg`). | Z, C |
-| **`CMP reg, inm`** | `0x18` | 2 Bytes | Compara `reg` con `inm` (Resta interna `reg - inm`). | Z, C |
-| **`LD reg, [addr]`**| `0x0D` | 2 Bytes | Carga en `reg` el contenido de la dirección `addr`. | Ninguna |
-| **`ST [addr], reg`**| `0x0E` | 2 Bytes | Almacena el contenido de `reg` en la dirección `addr`. | Ninguna |
-| **`JMP addr`** | `0x0F` | 2 Bytes | Salto incondicional a `addr`. | Ninguna |
-| **`JZ addr`** | `0x10` | 2 Bytes | Salta a `addr` si `Z == 1`. | Ninguna |
-| **`JNZ addr`** | `0x11` | 2 Bytes | Salta a `addr` si `Z == 0`. | Ninguna |
-| **`PUSH reg`** | `0x12` | 1 Byte | Guarda `reg` en la Pila (`mem[SP] = reg; SP--`). | Ninguna |
-| **`POP reg`** | `0x13` | 1 Byte | Recupera de la Pila a `reg` (`SP++; reg = mem[SP]`). | Ninguna |
-| **`CALL addr`** | `0x14` | 2 Bytes | Llama a subrutina en `addr` (Apila `PC` de retorno). | Ninguna |
-| **`RET`** | `0x15` | 1 Byte | Retorna de subrutina (Desapila dirección hacia `PC`). | Ninguna |
-| **`LDI dest, [ptr]`**| `0x16`| 2 Bytes | Carga indirecta: `dest = mem[ptr]`. | Ninguna |
-| **`STI [ptr], src`**| `0x17` | 2 Bytes | Almacenamiento indirecto: `mem[ptr] = src`. | Ninguna |
-| **`DIV reg`** | `0x19` | 1 Byte | Divide `A / reg`. Cociente $\rightarrow$ `A`, Residuo $\rightarrow$ `C`. | Z |
+
+* **Banderas de Estado (Flags)**:
+* **$Z$ (Zero Flag)**: Se activa ($1$) cuando el resultado de una operación es $0$.
+* **$C$ (Carry Flag / Borrow)**: Se activa ($1$) cuando una suma desborda los 8 bits ($>255$) o cuando una resta/comparación requiere un préstamo ($dest < src$).
+
+
 
 ---
 
-## 🎯 Codificación de Registros
+## 💾 Mapa de Registros y Memoria
 
-| Registro | Identificador Binario | Valor Numérico |
-| :---: | :---: | :---: |
-| **`A`** | `00` | 0 |
-| **`B`** | `01` | 1 |
-| **`C`** | `10` | 2 |
-| **`D`** | `11` | 3 |
+### Codificación de Registros (2 bits)
 
----
+| Nombre | Código Binario | Código Hex |
+| --- | --- | --- |
+| **A** | `00` | `0x00` |
+| **B** | `01` | `0x01` |
+| **C** | `10` | `0x02` |
+| **D** | `11` | `0x03` |
 
-## 💻 Ejemplo: Generación de Fibonacci con Texto (.DATA)
+### Organización de Memoria (256 Bytes)
 
-El siguiente programa imprime una cadena de texto desde memoria y calcula la serie de Fibonacci hasta desbordar los 8 bits ($>255$):
-
-```assembly
-; --- SERIE DE FIBONACCI CON SALIDA FORMATEADA ---
-.CODE
-  ; 1. Imprimir mensaje inicial desde .DATA
-  MOV A, msj_inicio
-  CALL PRINT_STR
-
-  ; 2. Inicializar secuencia
-  MOV A, 0
-  MOV B, 1
-
-BUCLE:
-  OUT 1, A          ; Imprimir valor entero de A
-  MOV C, $','
-  OUT 1, $C         ; Imprimir coma ASCII
-  MOV C, $' '
-  OUT 1, $C         ; Imprimir espacio ASCII
-
-  MOV C, A
-  ADD B             ; A = A + B
-  JZ FIN            ; Salir si es cero por rollover
-  JC FIN            ; Salir si hay acarreo (> 255)
-
-  MOV B, C          ; Avanzar pareja
-  JMP BUCLE
-
-FIN:
-  MOV C, $'.'
-  OUT 1, $C         ; Imprimir punto final
-  HLT
-
-; Subrutina para imprimir cadenas terminadas en 0
-PRINT_STR:
-  MOV B, A
-BUCLE_PRINT:
-  LDI C, B          ; C = memoria[B]
-  CMP C, 0          ; ¿Fin de cadena?
-  JZ FIN_PRINT
-  OUT 1, $C         ; Imprimir carácter en ASCII
-  MOV A, B
-  MOV D, 1
-  ADD D             ; Incrementar puntero (B = B + 1)
-  MOV B, A
-  JMP BUCLE_PRINT
-FIN_PRINT:
-  RET
-
-.DATA
-msj_inicio: DB "Fibonacci: ", 0
 ```
++------------------+ 0x00
+|     .CODE        |  Sección de instrucciones executables (crece hacia abajo)
+|                  |
++------------------+
+|     .DATA        |  Variables y cadenas declaradas con DB
+|                  |
++------------------+
+|        ...       |  Espacio libre
++------------------+
+|     STACK        |  Pila (crece hacia abajo desde 0xFF)
++------------------+ 0xFF
+
+```
+
+---
+
+## ⚙️ Juego de Instrucciones (ISA) y Opcodes
+
+Las instrucciones pueden ser de **1 Byte** (Opcode + Registro) o **2 Bytes** (Opcode + Registro + Valor Inmediato/Dirección/Segundo Registro).
+
+| Mnemónico | Sintaxis | Bytes | Opcode (Hex) | Descripción | Banderas Afectadas |
+| --- | --- | --- | --- | --- | --- |
+| **NOP** | `NOP` | 1 | `0x00` | Sin operación. | Ninguna |
+| **IN** | `IN reg, puerto` | 2 | `0x08 | reg` | Lee un byte del puerto I/O al registro. | Ninguna |
+| **OUT** | `OUT puerto, reg` | 2 | `0x10 | reg` | Imprime el número del registro en el puerto I/O. | Ninguna |
+|  | `OUT puerto, $reg` | 2 | `0x14 | reg` | Imprime el carácter ASCII del registro en el puerto. | Ninguna |
+| **HLT** | `HLT` | 1 | `0x18` | Detiene la ejecución de la CPU. | Ninguna |
+| **MOV** | `MOV dest, inm` | 2 | `0x20 | dest` | Carga valor inmediato en el registro destino. | Ninguna |
+|  | `MOV dest, src` | 2 | `0x28 | dest` | Copia el contenido de `src` en `dest`. | Ninguna |
+| **ADD** | `ADD dest, src` | 2 | `0x30 | dest` | `dest = dest + src`. | $Z$, $C$ |
+|  | `ADD dest, inm` | 2 | `0x34 | dest` | `dest = dest + inm`. | $Z$, $C$ |
+| **SUB** | `SUB dest, src` | 2 | `0x38 | dest` | `dest = dest - src`. | $Z$, $C$ |
+|  | `SUB dest, inm` | 2 | `0x3C | dest` | `dest = dest - inm`. | $Z$, $C$ |
+| **MUL** | `MUL dest, src` | 2 | `0xD0 | dest` | `dest = dest * src`. | $Z$, $C$ |
+|  | `MUL dest, inm` | 2 | `0xD4 | dest` | `dest = dest * inm`. | $Z$, $C$ |
+| **DIV** | `DIV dest, src` | 2 | `0xE0 | dest` | `dest = dest // src` (división entera). | $Z$ |
+|  | `DIV dest, inm` | 2 | `0xE4 | dest` | `dest = dest // inm`. | $Z$ |
+| **SHF** | `SHF reg` | 1 | `0x40 | reg` | Desplazamiento a la izquierda (`reg << 1`). | $Z$, $C$ |
+| **AND** | `AND reg` | 1 | `0x48 | reg` | Operación lógica: `A = A & reg`. | $Z$ |
+| **OR** | `OR reg` | 1 | `0x50 | reg` | Operación lógica: `A = A | reg`. | $Z$ |
+| **XOR** | `XOR reg` | 1 | `0x58 | reg` | Operación lógica: `A = A ^ reg`. | $Z$ |
+| **CMP** | `CMP A, reg` / `CMP reg` | 1 | `0x60 | reg` | Compara `A` con `reg` (resta interna `A - reg`). | $Z$, $C$ |
+|  | `CMP reg, inm` | 2 | `0xC0 | reg` | Compara `reg` con valor inmediato (`reg - inm`). | $Z$, $C$ |
+| **LD** | `LD reg, [addr]` | 2 | `0x68 | reg` | Carga en `reg` el valor de la memoria `[addr]`. | Ninguna |
+| **ST** | `ST [addr], reg` | 2 | `0x70 | reg` | Almacena `reg` en la dirección `[addr]`. | Ninguna |
+| **LDI** | `LDI reg, [ptr]` | 2 | `0xB0 | reg` | Carga en `reg` usando direccionamiento indirecto por registro `[ptr]`. | Ninguna |
+| **STI** | `STI [ptr], reg` | 2 | `0xB8 | ptr` | Almacena `reg` en la dirección contenida en `[ptr]`. | Ninguna |
+| **JMP** | `JMP addr` | 2 | `0x78` | Salto incondicional a `addr`. | Ninguna |
+| **JZ** | `JZ addr` | 2 | `0x80` | Salto condicional a `addr` si $Z = 1$. | Ninguna |
+| **JNZ** | `JNZ addr` | 2 | `0x88` | Salto condicional a `addr` si $Z = 0$. | Ninguna |
+| **JC** | `JC addr` | 2 | `0xC8` | Salto condicional a `addr` si $C = 1$ (Carry/Borrow). | Ninguna |
+| **PUSH** | `PUSH reg` | 1 | `0x90 | reg` | Guarda el contenido de `reg` en la pila. | Ninguna |
+| **POP** | `POP reg` | 1 | `0x98 | reg` | Recupera el valor de la cima de la pila a `reg`. | Ninguna |
+| **CALL** | `CALL addr` | 2 | `0xA0` | Llama a subrutina (guarda dirección de retorno en la pila). | Ninguna |
+| **RET** | `RET` | 1 | `0xA8` | Retorna de subrutina (restaura el `PC` desde la pila). | Ninguna |
+
+---
+
+## 🎯 Modos de Direccionamiento
+
+1. **Inmediato**: El operando es una constante numérica o carácter.
+* Ejemplos: `MOV A, 10`, `ADD B, 0x05`, `MOV C, $'A'`
+
+
+2. **Registro**: La operación se realiza entre registros de la CPU.
+* Ejemplos: `MOV A, B`, `ADD C, D`, `SUB A, B`
+
+
+3. **Directo de Memoria**: Especifica una dirección absoluta en la RAM.
+* Ejemplos: `LD A, [0x80]`, `ST [0x40], B`
+
+
+4. **Indirecto por Registro**: La dirección de memoria está guardada dentro de un registro.
+* Ejemplos: `LDI C, [B]`, `STI [B], A`
+
+
+
+---
+
+## 🔌 Sistema de Periféricos (I/O)
+
+La CPU utiliza instrucciones dedicadas `IN` y `OUT` para comunicarse con puertos virtuales:
+
+* **Puerto `0` (Entrada/Teclado)**: Permite la lectura de caracteres ingresados desde la interfaz.
+* **Puerto `1` (Salida/Pantalla)**:
+* `OUT 1, reg`: Muestra el entero decimal directamente en la consola (ej. `36`).
+* `OUT 1, $reg`: Interpreta el byte como carácter ASCII (ej. `$'A'` $\rightarrow$ `A`).
+
+
 
 ---
 
 ## 🚀 Instalación y Ejecución
 
-### Requisitos Previos (Ubuntu/Debian/Arch)
-Asegúrate de contar con Python 3 y las dependencias de GTK4 e PyGObject:
+### Versión Escritorio (Python + GTK4)
+
+Requisitos: Python 3.10+, GTK4 y PyGObject.
 
 ```bash
-# Ubuntu / Debian
-sudo apt install python3-gi python3-gi-cairo libgtk-4-dev
+# Ejecutar la aplicación
+python main.py
 
-# Arch Linux
-sudo pacman -S python-gobject gtk4
 ```
 
-### Estructura de Ficheros
-```text
-pycpu2/
-├── main.py
-├── ui.py
-├── cpu.py
-├── assembler.py
-├── window.ui (opcional)
-└── README.md
+### Versión Web (HTML5 + JavaScript)
+
+Abre el archivo `index.html` en cualquier navegador web moderno (no requiere dependencias ni servidor Web).
+
+---
+
+## 📝 Ejemplos de Programación
+
+### 1. Divisíon por Restas Sucesivas (con resto y cociente)
+
+```assembly
+; --- DIVISIÓN: 38 / 5 ---
+.CODE
+  MOV A, 38         ; Dividendo
+  MOV B, 5          ; Divisor
+  CALL dividir
+  OUT 1, C          ; Muestra Cociente (7)
+  OUT 1, A          ; Muestra Resto (3)
+  HLT
+
+dividir:
+  MOV C, 0          ; Cociente (Contador)
+bucle_d:
+  MOV D, A          ; Copia dividendo actual
+  SUB D, B          ; Resta de prueba
+  JC fin_div        ; Si A < B, activa Carry y salta a fin
+
+  SUB A, B          ; Resta real
+  ADD C, 1          ; Incrementar cociente
+  JMP bucle_d
+fin_div:
+  RET
+
 ```
 
-### Ejecutar la Aplicación
-```bash
-python3 main.py
+### 2. Cadena de Texto en ASCII
+
+```assembly
+.CODE
+  MOV A, mensaje
+  CALL PRINT_STR
+  HLT
+
+PRINT_STR:
+  MOV B, A
+BUCLE:
+  LDI C, [B]
+  CMP C, 0
+  JZ FIN
+  OUT 1, $C
+  ADD B, 1
+  JMP BUCLE
+FIN:
+  RET
+
+.DATA
+mensaje: DB "Hola Mundo!", 0
+
 ```

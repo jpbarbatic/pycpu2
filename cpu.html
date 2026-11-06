@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador CPU 8-Bits - Web Debugger</title>
+    <style>
+        :root {
+            --bg-color: #1e1e1e;
+            --panel-bg: #252526;
+            --border-color: #3c3c3c;
+            --accent-color: #0e639c;
+            --text-color: #cccccc;
+            --highlight-pc: #3584e4;
+            --code-color: #4CAF50;
+            --data-color: #FF9800;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+
+        h1, h3 {
+            margin-top: 0;
+            color: #ffffff;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+            background: var(--panel-bg);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid var(--border-color);
+        }
+
+        button, select {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        select {
+            background: #3c3c3c;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+            height: calc(100vh - 100px);
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        textarea {
+            width: 100%;
+            flex-grow: 1;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border: 1px solid var(--border-color);
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            padding: 8px;
+            resize: none;
+            box-sizing: border-box;
+        }
+
+        .console-view {
+            background: black;
+            color: #00ff00;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            padding: 8px;
+            border-radius: 3px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .trace-view {
+            background: black;
+            color: white;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            padding: 8px;
+            border-radius: 3px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .regs-view {
+            background: #1e1e1e;
+            font-family: 'Consolas', monospace;
+            padding: 10px;
+            border-radius: 3px;
+            margin-bottom: 10px;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .mem-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+            font-family: 'Consolas', monospace;
+            font-size: 11px;
+            overflow-y: auto;
+            background: #1e1e1e;
+            padding: 8px;
+            border-radius: 3px;
+            flex-grow: 1;
+        }
+
+        .mem-cell {
+            background: #2d2d2d;
+            text-align: center;
+            padding: 4px 2px;
+            border-radius: 2px;
+        }
+
+        .mem-cell.pc { background: var(--highlight-pc) !important; color: white; font-weight: bold; }
+        .mem-cell.code { color: var(--code-color); }
+        .mem-cell.data { color: var(--data-color); }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <button id="btn-assemble">Ensamblar</button>
+        <button id="btn-step">Paso a Paso</button>
+        <button id="btn-run">Ejecutar</button>
+        <button id="btn-reset">Reset</button>
+        <label style="margin-left:15px; font-size: 12px;">Velocidad:</label>
+        <select id="frec-select">
+            <option value="1000">1 s</option>
+            <option value="500">500 ms</option>
+            <option value="100">100 ms</option>
+            <option value="10" selected>10 ms</option>
+            <option value="1">1 ms</option>
+        </select>
+    </div>
+
+    <div class="workspace">
+        <!-- Editor Assembly -->
+        <div class="panel">
+            <h3>Editor Assembly</h3>
+            <textarea id="code-editor" spellcheck="false">; --- DIVISIÓN POR RESTAS SUCESIVAS ---
+.CODE
+  MOV A, 38         ; Dividendo
+  MOV B, 5          ; Divisor
+  CALL dividir
+  OUT 1, C          ; Muestra Cociente (7)
+  OUT 1, A          ; Muestra Resto (3)
+  HLT
+
+dividir:
+  MOV C, 0          ; C = Cociente (Contador)
+bucle_d:
+  MOV D, A          ; Copia de A en D
+  SUB D, B          ; Resta de prueba (D = D - B)
+  JC fin_div        ; Si D < B -> salta al final
+
+  SUB A, B          ; Resta real A = A - B
+  ADD C, 1          ; Incrementar cociente
+  JMP bucle_d
+fin_div:
+  RET</textarea>
+        </div>
+
+        <!-- Estado CPU y Pantalla -->
+        <div class="panel">
+            <h3>Registros & CPU</h3>
+            <div id="regs-display" class="regs-view">
+                PC : 00 | SP : FF<br>
+                A  : 00 | B: 00 | C: 00 | D: 00<br>
+                Z-Flag: 0 | C-Flag: 0 | Halt: No
+            </div>
+
+            <h3>Consola Salida (I/O)</h3>
+            <div id="display-console" class="console-view"></div>
+
+            <h3 style="margin-top:10px;">Traza de Ejecución</h3>
+            <div id="trace-console" class="trace-view"></div>
+        </div>
+
+        <!-- Memoria Hexadecimal -->
+        <div class="panel">
+            <h3>Memoria (256 Bytes)</h3>
+            <div id="mem-container" class="mem-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. CLASE MEMORIA ---
+        class Memory {
+            constructor(size = 256) {
+                this.size = size;
+                this.data = new Uint8Array(size);
+            }
+            read(addr) { return (addr >= 0 && addr < this.size) ? this.data[addr] : 0; }
+            write(addr, val) { if (addr >= 0 && addr < this.size) this.data[addr] = val & 0xFF; }
+            reset() { this.data.fill(0); }
+        }
+
+        // --- 2. CLASE CPU ---
+        class CPU {
+            constructor(memory, ioOut) {
+                this.memory = memory;
+                this.ioOut = ioOut;
+                this.reset();
+            }
+
+            reset() {
+                this.registers = [0, 0, 0, 0]; // 0:A, 1:B, 2:C, 3:D
+                this.pc = 0;
+                this.sp = 0xFF;
+                this.zeroFlag = false;
+                this.carryFlag = false;
+                this.halted = false;
+            }
+
+            fetch() {
+                if (this.pc >= this.memory.size) { this.halted = true; return null; }
+                return this.memory.read(this.pc++);
+            }
+
+            updateFlags(val, carry = false) {
+                this.zeroFlag = ((val & 0xFF) === 0);
+                this.carryFlag = carry;
+            }
+
+            rName(code) { return ['A', 'B', 'C', 'D'][code] || 'A'; }
+
+            step() {
+                if (this.halted) return "CPU Halted.";
+                
+                const byte1 = this.fetch();
+                if (byte1 === null) return "Fin de memoria.";
+
+                const opcode = byte1 >> 3;
+                const operand = byte1 & 0x07;
+
+                switch (opcode) {
+                    case 0x00: return `[${(this.pc-1).toString(16).padStart(2,'0').toUpperCase()}] NOP`;
+                    case 0x02: {
+                        const fmtAscii = Boolean(operand & 0x4);
+                        const reg = operand & 0x3;
+                        const port = this.fetch();
+                        const val = this.registers[reg];
+                        this.ioOut(port, val, fmtAscii);
+                        return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] OUT P${port.toString(16).padStart(2,'0')}, ${this.rName(reg)}`;
+                    }
+                    case 0x03: this.halted = true; return `[${(this.pc-1).toString(16).padStart(2,'0').toUpperCase()}] HLT`;
+                    case 0x04: {
+                        const reg = operand & 0x3;
+                        const val = this.fetch();
+                        this.registers[reg] = val;
+                        return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] MOV ${this.rName(reg)}, ${val.toString(16).padStart(2,'0')}`;
+                    }
+                    case 0x05: {
+                        const dest = operand & 0x3;
+                        const src = this.fetch() & 0x3;
+                        this.registers[dest] = this.registers[src];
+                        return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] MOV ${this.rName(dest)}, ${this.rName(src)}`;
+                    }
+                    case 0x06: { // ADD
+                        const dest = operand & 0x3;
+                        if (operand & 0x4) {
+                            const val = this.fetch();
+                            const res = this.registers[dest] + val;
+                            this.registers[dest] = res & 0xFF;
+                            this.updateFlags(this.registers[dest], res > 0xFF);
+                            return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] ADD ${this.rName(dest)}, ${val.toString(16).padStart(2,'0')}`;
+                        } else {
+                            const src = this.fetch() & 0x3;
+                            const res = this.registers[dest] + this.registers[src];
+                            this.registers[dest] = res & 0xFF;
+                            this.updateFlags(this.registers[dest], res > 0xFF);
+                            return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] ADD ${this.rName(dest)}, ${this.rName(src)}`;
+                        }
+                    }
+                    case 0x07: { // SUB
+                        const dest = operand & 0x3;
+                        if (operand & 0x4) {
+                            const val = this.fetch();
+                            const res = this.registers[dest] - val;
+                            this.registers[dest] = res & 0xFF;
+                            this.updateFlags(this.registers[dest], res < 0);
+                            return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] SUB ${this.rName(dest)}, ${val.toString(16).padStart(2,'0')}`;
+                        } else {
+                            const src = this.fetch() & 0x3;
+                            const res = this.registers[dest] - this.registers[src];
+                            this.registers[dest] = res & 0xFF;
+                            this.updateFlags(this.registers[dest], res < 0);
+                            return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] SUB ${this.rName(dest)}, ${this.rName(src)}`;
+                        }
+                    }
+                    case 0x0F: { const addr = this.fetch(); this.pc = addr; return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] JMP ${addr.toString(16).padStart(2,'0')}`; }
+                    case 0x10: { const addr = this.fetch(); if (this.zeroFlag) this.pc = addr; return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] JZ ${addr.toString(16).padStart(2,'0')}`; }
+                    case 0x14: {
+                        const target = this.fetch();
+                        this.memory.write(this.sp, this.pc);
+                        this.sp = (this.sp - 1) & 0xFF;
+                        this.pc = target;
+                        return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] CALL ${target.toString(16).padStart(2,'0')}`;
+                    }
+                    case 0x15: {
+                        this.sp = (this.sp + 1) & 0xFF;
+                        const retAddr = this.memory.read(this.sp);
+                        this.pc = retAddr;
+                        return `[${(this.pc-1).toString(16).padStart(2,'0').toUpperCase()}] RET -> ${retAddr.toString(16).padStart(2,'0')}`;
+                    }
+                    case 0x19: { const addr = this.fetch(); if (this.carryFlag) this.pc = addr; return `[${(this.pc-2).toString(16).padStart(2,'0').toUpperCase()}] JC ${addr.toString(16).padStart(2,'0')}`; }
+                    default: return `[${(this.pc-1).toString(16).padStart(2,'0').toUpperCase()}] UNKNOWN OP`;
+                }
+            }
+        }
+
+        // --- 3. ENSAMBLADOR ---
+        class Assembler {
+            static REGISTERS = {'A':0, 'B':1, 'C':2, 'D':3};
+
+            static assemble(code) {
+                const lines = code.split('\n');
+                const labels = {};
+                const memoryMap = {};
+                const parsed = [];
+                let codeAddr = 0;
+
+                // Paso 1: Parsear etiquetas y direcciones
+                for (let rawLine of lines) {
+                    let line = rawLine.split(';')[0].trim();
+                    if (!line || line.startsWith('.')) continue;
+
+                    if (line.includes(':')) {
+                        const parts = line.split(':');
+                        labels[parts[0].trim().toUpperCase()] = codeAddr;
+                        line = parts[1] ? parts[1].trim() : '';
+                    }
+
+                    if (!line) continue;
+                    const tokens = line.split(/[\s,]+/).filter(t => t.length > 0);
+                    const instr = tokens[0].toUpperCase();
+
+                    parsed.push({ addr: codeAddr, tokens });
+                    if (['MOV', 'ADD', 'SUB', 'JMP', 'JZ', 'JC', 'CALL', 'OUT'].includes(instr)) {
+                        codeAddr += 2;
+                    } else {
+                        codeAddr += 1;
+                    }
+                }
+
+                const resolveVal = (v) => {
+                    v = v.toUpperCase();
+                    if (v in labels) return labels[v];
+                    if (v.startsWith('0X')) return parseInt(v, 16);
+                    return parseInt(v, 10) || 0;
+                };
+
+                // Paso 2: Generar Bytecode
+                for (let item of parsed) {
+                    const { addr, tokens } = item;
+                    const instr = tokens[0].toUpperCase();
+
+                    if (instr === 'HLT') memoryMap[addr] = 0x18;
+                    else if (instr === 'RET') memoryMap[addr] = 0xA8;
+                    else if (instr === 'OUT') {
+                        memoryMap[addr] = 0x10 | (this.REGISTERS[tokens[2].toUpperCase()] || 0);
+                        memoryMap[addr+1] = resolveVal(tokens[1]);
+                    } else if (instr === 'MOV') {
+                        const dest = tokens[1].toUpperCase();
+                        const src = tokens[2].toUpperCase();
+                        if (src in this.REGISTERS) {
+                            memoryMap[addr] = 0x28 | this.REGISTERS[dest];
+                            memoryMap[addr+1] = this.REGISTERS[src];
+                        } else {
+                            memoryMap[addr] = 0x20 | this.REGISTERS[dest];
+                            memoryMap[addr+1] = resolveVal(src);
+                        }
+                    } else if (instr === 'ADD' || instr === 'SUB') {
+                        const dest = tokens[1].toUpperCase();
+                        const src = tokens[2].toUpperCase();
+                        const isSub = (instr === 'SUB');
+                        const baseOp = isSub ? 0x38 : 0x30;
+
+                        if (src in this.REGISTERS) {
+                            memoryMap[addr] = baseOp | this.REGISTERS[dest];
+                            memoryMap[addr+1] = this.REGISTERS[src];
+                        } else {
+                            memoryMap[addr] = (baseOp | 0x04) | this.REGISTERS[dest];
+                            memoryMap[addr+1] = resolveVal(src);
+                        }
+                    } else if (instr === 'JMP') { memoryMap[addr] = 0x78; memoryMap[addr+1] = resolveVal(tokens[1]); }
+                    else if (instr === 'JZ')  { memoryMap[addr] = 0x80; memoryMap[addr+1] = resolveVal(tokens[1]); }
+                    else if (instr === 'JC')  { memoryMap[addr] = 0xC8; memoryMap[addr+1] = resolveVal(tokens[1]); }
+                    else if (instr === 'CALL'){ memoryMap[addr] = 0xA0; memoryMap[addr+1] = resolveVal(tokens[1]); }
+                }
+
+                return { memoryMap, codeSize: codeAddr };
+            }
+        }
+
+        // --- 4. INTERFAZ Y CONTROL ---
+        const memory = new Memory(256);
+        const displayConsole = document.getElementById('display-console');
+        const traceConsole = document.getElementById('trace-console');
+
+        const cpu = new CPU(memory, (port, val) => {
+            displayConsole.innerHTML += `${val} `;
+            displayConsole.scrollTop = displayConsole.scrollHeight;
+        });
+
+        let timer = null;
+
+        function updateUI() {
+            // Actualizar registros
+            document.getElementById('regs-display').innerHTML = 
+                `PC : ${cpu.pc.toString(16).padStart(2,'0').toUpperCase()} | SP : ${cpu.sp.toString(16).padStart(2,'0').toUpperCase()}<br>` +
+                `A  : ${cpu.registers[0].toString(16).padStart(2,'0').toUpperCase()} | ` +
+                `B  : ${cpu.registers[1].toString(16).padStart(2,'0').toUpperCase()} | ` +
+                `C  : ${cpu.registers[2].toString(16).padStart(2,'0').toUpperCase()} | ` +
+                `D  : ${cpu.registers[3].toString(16).padStart(2,'0').toUpperCase()}<br>` +
+                `Z-Flag: ${cpu.zeroFlag ? 1 : 0} | C-Flag: ${cpu.carryFlag ? 1 : 0} | Halt: ${cpu.halted ? 'Sí' : 'No'}`;
+
+            // Actualizar vista de memoria
+            const memContainer = document.getElementById('mem-container');
+            memContainer.innerHTML = '';
+            for (let i = 0; i < memory.size; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'mem-cell';
+                if (i === cpu.pc) cell.classList.add('pc');
+                cell.innerText = memory.read(i).toString(16).padStart(2,'0').toUpperCase();
+                memContainer.appendChild(cell);
+            }
+        }
+
+        document.getElementById('btn-assemble').addEventListener('click', () => {
+            const code = document.getElementById('code-editor').value;
+            memory.reset();
+            cpu.reset();
+            displayConsole.innerHTML = '';
+            traceConsole.innerHTML = '';
+
+            const { memoryMap } = Assembler.assemble(code);
+            for (let addr in memoryMap) {
+                memory.write(parseInt(addr), memoryMap[addr]);
+            }
+            traceConsole.innerHTML += "--- Programa Ensamblado con Éxito ---\n";
+            updateUI();
+        });
+
+        document.getElementById('btn-step').addEventListener('click', () => {
+            if (!cpu.halted) {
+                const log = cpu.step();
+                traceConsole.innerHTML += log + "\n";
+                traceConsole.scrollTop = traceConsole.scrollHeight;
+                updateUI();
+            }
+        });
+
+        document.getElementById('btn-run').addEventListener('click', function() {
+            if (timer) {
+                clearInterval(timer);
+                timer = null;
+                this.innerText = "Ejecutar";
+            } else {
+                this.innerText = "Pausar";
+                const delay = parseInt(document.getElementById('frec-select').value);
+                timer = setInterval(() => {
+                    if (cpu.halted) {
+                        clearInterval(timer);
+                        timer = null;
+                        document.getElementById('btn-run').innerText = "Ejecutar";
+                    } else {
+                        const log = cpu.step();
+                        traceConsole.innerHTML += log + "\n";
+                        traceConsole.scrollTop = traceConsole.scrollHeight;
+                        updateUI();
+                    }
+                }, delay);
+            }
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            if (timer) { clearInterval(timer); timer = null; document.getElementById('btn-run').innerText = "Ejecutar"; }
+            cpu.reset();
+            updateUI();
+        });
+
+        // Inicialización
+        document.getElementById('btn-assemble').click();
+    </script>
+</body>
+</html>
